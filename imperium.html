@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Imperium - Board Game</title>
+<!-- only using google fonts bc it looks cool lol -->
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+/* ok so this is the css, its pretty basic dont judge me */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #1a1a2e;
+  color: #eee;
+  font-family: 'Press Start 2P', monospace;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  min-height: 100vh;
+}
+h1 {
+  font-size: 28px;
+  margin-bottom: 8px;
+  color: #e94560;
+  text-shadow: 2px 2px 0px #0f3460;
+  letter-spacing: 4px;
+}
+.subtitle {
+  font-size: 8px;
+  color: #666;
+  margin-bottom: 15px;
+}
+#status {
+  font-size: 11px;
+  margin-bottom: 10px;
+  padding: 8px 16px;
+  background: #16213e;
+  border: 2px solid #0f3460;
+  border-radius: 4px;
+  text-align: center;
+  max-width: 520px;
+  line-height: 1.6;
+}
+#board {
+  border: 4px solid #e94560;
+  border-collapse: collapse;
+  box-shadow: 0 0 20px rgba(233,69,96,0.3);
+}
+td {
+  width: 64px;
+  height: 64px;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 38px;
+  cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.3);
+  position: relative;
+  user-select: none;
+}
+.light { background: #e8c99b; }
+.dark { background: #a67c52; }
+/* when u click a piece it gets highlighted */
+td.selected {
+  outline: 3px solid #ff9f1c;
+  outline-offset: -3px;
+  z-index: 1;
+}
+/* valid move targets get a green dot thing */
+td.valid-move::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: rgba(46,196,182,0.6);
+}
+/* valid move on an enemy piece gets a ring instead */
+td.valid-move.has-piece::after {
+  width: 52px; height: 52px;
+  background: transparent;
+  border: 3px solid rgba(46,196,182,0.7);
+  border-radius: 50%;
+}
+/* signifer remove targets are RED */
+td.remove-target {
+  outline: 3px solid #e71d36;
+  outline-offset: -3px;
+  z-index: 1;
+}
+td.remove-target::after {
+  content: 'X';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  font-size: 28px;
+  color: rgba(231,29,54,0.7);
+  font-family: 'Press Start 2P', monospace;
+  pointer-events: none;
+}
+/* command select targets are purple */
+td.command-target {
+  outline: 3px solid #a855f7;
+  outline-offset: -3px;
+  z-index: 1;
+}
+/* highlight last move squares */
+td.last-move { background: rgba(78,205,196,0.25) !important; }
+/* imperator in check gets a red glow thing */
+td.in-check {
+  box-shadow: inset 0 0 18px rgba(255,0,0,0.6);
+}
+#controls {
+  margin-top: 14px;
+  text-align: center;
+}
+#controls button {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  padding: 10px 18px;
+  margin: 4px;
+  background: #0f3460;
+  color: #eee;
+  border: 2px solid #4a9eff;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+#controls button:hover { background: #4a9eff; color: #000; }
+/* legend at the bottom */
+#legend {
+  margin-top: 15px;
+  font-size: 8px;
+  color: #555;
+  text-align: center;
+  line-height: 1.8;
+  max-width: 520px;
+}
+/* modal overlay */
+#modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 100;
+  justify-content: center;
+  align-items: center;
+}
+#modal-overlay.active { display: flex; }
+#modal {
+  background: #16213e;
+  border: 3px solid #e94560;
+  padding: 25px;
+  border-radius: 8px;
+  text-align: center;
+  max-width: 440px;
+  width: 90%;
+}
+#modal h3 {
+  margin-bottom: 12px;
+  color: #e94560;
+  font-size: 13px;
+}
+#modal p {
+  margin-bottom: 18px;
+  font-size: 9px;
+  line-height: 1.8;
+  color: #ccc;
+}
+.modal-btn {
+  margin: 4px;
+  padding: 8px 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  background: #0f3460;
+  color: #eee;
+  border: 2px solid #4a9eff;
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-block;
+}
+.modal-btn:hover { background: #4a9eff; color: #000; }
+</style>
+</head>
+<body>
+
+<h1>IMPERIUM</h1>
+<div class="subtitle">a board game i made (probably has bugs lol)</div>
+<div id="status">White's turn - select a piece</div>
+<table id="board"></table>
+<div id="controls">
+  <button onclick="undoMove()">Undo</button>
+  <button onclick="newGame()">New Game</button>
+</div>
+<div id="legend">
+  &#9812; Imperator (1 sq any dir) | &#9814; Legate (rook) | &#9815; Tribune (bishop) | &#9816; Eques (knight) | &#9813; Signifer (1 ortho / remove adj) | &#9817; Milites (diag fwd)
+</div>
+
+<div id="modal-overlay" onclick="modalOverlayClick(event)">
+  <div id="modal">
+    <h3 id="modal-title"></h3>
+    <p id="modal-text"></p>
+    <div id="modal-buttons"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  IMPERIUM BOARD GAME
+//  coded by me lol dont steal
+//  v2 - fixed some bugs my friend found
+// ============================================================
+
+// ===== GLOBAL VARIABLES =====
+// yo these are all the variables i need dont ask why theyre global
+var board = [];              // the 8x8 board array thing
+var turn = 'white';          // whose turn it is
+var selectedCell = null;     // which cell is selected right now
+var validMoves = [];         // array of valid moves for selected piece
+var savedState = null;       // for undo, only saves one level
+var commandUsedThisTurn = false; // can only use command once per turn
+var phase = 'select';        // current game phase thing
+// phase can be: select, move, command_select, command_move, signifer_remove, gameover
+var lastMoveFrom = null;     // for highlighting last move
+var lastMoveTo = null;
+
+// piece type constants - using strings bc idk how enums work in js lol
+var IMPERATOR = 'imperator';
+var LEGATE = 'legate';
+var TRIBUNE = 'tribune';
+var EQUES = 'eques';
+var SIGNIFER = 'signifer';
+var MILITES = 'milites';
+
+// unicode symbols for pieces (i just looked these up lol)
+var SYMBOLS = {
+  white: { imperator: '\u2654', legate: '\u2656', tribune: '\u2657', eques: '\u2658', signifer: '\u2655', milites: '\u2659' },
+  black: { imperator: '\u265A', legate: '\u265C', tribune: '\u265D', eques: '\u265E', signifer: '\u265B', milites: '\u265F' }
+};
+
+// piece display names
+var NAMES = {
+  imperator: 'Imperator', legate: 'Legate', tribune: 'Tribune',
+  eques: 'Eques', signifer: 'Signifer', milites: 'Milites'
+};
+
+// ===== INIT BOARD =====
+/* sets up the starting position
+   white at bottom rows 6-7, black at top rows 0-1
+   back rank: Legate Eques Tribune Signifer Imperator Tribune Eques Legate */
+function initBoard() {
+  board = [];
+  var r, c;
+  for (r = 0; r < 8; r++) {
+    board[r] = [];
+    for (c = 0; c < 8; c++) {
+      board[r][c] = null;
+    }
+  }
+  // back rank setup
+  var backRank = [LEGATE, EQUES, TRIBUNE, SIGNIFER, IMPERATOR, TRIBUNE, EQUES, LEGATE];
+  for (c = 0; c < 8; c++) {
+    board[0][c] = { type: backRank[c], color: 'black' };
+    board[1][c] = { type: MILITES, color: 'black' };
+    board[6][c] = { type: MILITES, color: 'white' };
+    board[7][c] = { type: backRank[c], color: 'white' };
+  }
+}
+
+// ===== RENDER BOARD =====
+// yo this draws the board, its pretty simple just loops through cells
+function renderBoard() {
+  var table = document.getElementById('board');
+  table.innerHTML = '';
+  var r, c, tr, td, piece, m, i;
+  // find if imperator is in check so we can highlight it
+  var whiteCheck = isInCheck('white');
+  var blackCheck = isInCheck('black');
+
+  for (r = 0; r < 8; r++) {
+    tr = document.createElement('tr');
+    for (c = 0; c < 8; c++) {
+      td = document.createElement('td');
+      // alternating square colors
+      if ((r + c) % 2 === 0) {
+        td.className = 'light';
+      } else {
+        td.className = 'dark';
+      }
+      // highlight last move
+      if (lastMoveFrom && lastMoveFrom.row === r && lastMoveFrom.col === c) {
+        td.classList.add('last-move');
+      }
+      if (lastMoveTo && lastMoveTo.row === r && lastMoveTo.col === c) {
+        td.classList.add('last-move');
+      }
+      // highlight selected cell
+      if (selectedCell && selectedCell.row === r && selectedCell.col === c) {
+        td.classList.add('selected');
+      }
+      // highlight valid moves or command targets or remove targets
+      var isTarget = false;
+      for (i = 0; i < validMoves.length; i++) {
+        if (validMoves[i].row === r && validMoves[i].col === c) {
+          isTarget = true;
+          if (phase === 'signifer_remove') {
+            td.classList.add('remove-target');
+          } else if (phase === 'command_select') {
+            td.classList.add('command-target');
+          } else {
+            td.classList.add('valid-move');
+          }
+          break;
+        }
+      }
+      // put the piece symbol in there
+      piece = board[r][c];
+      if (piece) {
+        td.textContent = SYMBOLS[piece.color][piece.type];
+        td.classList.add('has-piece');
+        if (piece.color === 'white') {
+          td.style.color = '#fff';
+          td.style.textShadow = '0 0 4px #000, 1px 1px 2px #000';
+        } else {
+          td.style.color = '#1a1a1a';
+          td.style.textShadow = '0 0 4px rgba(255,255,255,0.5)';
+        }
+        // check highlight on imperator
+        if (piece.type === IMPERATOR) {
+          if ((piece.color === 'white' && whiteCheck) || (piece.color === 'black' && blackCheck)) {
+            td.classList.add('in-check');
+          }
+        }
+      } else {
+        td.textContent = '';
+        td.style.color = '';
+        td.style.textShadow = '';
+      }
+      // click handler thing - used a closure here bc it breaks without it
+      (function(row, col) {
+        td.onclick = function() { cellClick(row, col); };
+      })(r, c);
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+}
+
+// ===== COPY BOARD =====
+// i need to copy the board for undo, this is probably inefficient but whatever
+function copyBoard(b) {
+  var newBoard = [];
+  var r, c;
+  for (r = 0; r < 8; r++) {
+    newBoard[r] = [];
+    for (c = 0; c < 8; c++) {
+      if (b[r][c]) {
+        newBoard[r][c] = { type: b[r][c].type, color: b[r][c].color };
+      } else {
+        newBoard[r][c] = null;
+      }
+    }
+  }
+  return newBoard;
+}
+
+// ===== SAVE / RESTORE STATE FOR UNDO =====
+// saves the entire game state so you can undo one move
+function saveState() {
+  savedState = {
+    board: copyBoard(board),
+    turn: turn,
+    commandUsedThisTurn: commandUsedThisTurn,
+    phase: phase,
+    lastMoveFrom: lastMoveFrom ? {row: lastMoveFrom.row, col: lastMoveFrom.col} : null,
+    lastMoveTo: lastMoveTo ? {row: lastMoveTo.row, col: lastMoveTo.col} : null
+  };
+}
+
+function undoMove() {
+  if (!savedState) {
+    setStatus("Nothing to undo lol");
+    return;
+  }
+  board = savedState.board;
+  turn = savedState.turn;
+  commandUsedThisTurn = savedState.commandUsedThisTurn;
+  phase = savedState.phase;
+  lastMoveFrom = savedState.lastMoveFrom;
+  lastMoveTo = savedState.lastMoveTo;
+  savedState = null;
+  selectedCell = null;
+  validMoves = [];
+  if (phase !== 'gameover') {
+    setStatus(turn + "'s turn - select a piece");
+  }
+  hideModal();
+  renderBoard();
+}
+
+// ===== STATUS AND UI =====
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+// ===== FIND IMPERATOR =====
+// scans the whole board to find the imperator
+// i was gonna track positions but scanning is simpler and less buggy
+function findImperator(color) {
+  var r, c;
+  for (r = 0; r < 8; r++) {
+    for (c = 0; c < 8; c++) {
+      if (board[r][c] && board[r][c].type === IMPERATOR && board[r][c].color === color) {
+        return { row: r, col: c };
+      }
+    }
+  }
+  return null;
+}
+
+// ===== GET ATTACK SQUARES =====
+// returns all squares a piece can attack (for check detection)
+// this is different from valid moves - this is just "what squares can this piece hit"
+function getAttackSquares(row, col) {
+  var piece = board[row][col];
+  if (!piece) return [];
+  var attacks = [];
+  var r, c, i, dist;
+  // probably could have made this cleaner but switch statements are cool ok
+
+  switch (piece.type) {
+    case IMPERATOR:
+      // just 1 square in every direction, 8 total
+      var impDirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+      for (i = 0; i < impDirs.length; i++) {
+        r = row + impDirs[i][0]; c = col + impDirs[i][1];
+        if (r >= 0 && r < 8 && c >= 0 && c < 8) attacks.push({row:r, col:c});
+      }
+      break;
+    case LEGATE:
+      // rook moves - straight lines until blocked
+      var rookDirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      for (i = 0; i < rookDirs.length; i++) {
+        for (dist = 1; dist < 8; dist++) {
+          r = row + rookDirs[i][0]*dist; c = col + rookDirs[i][1]*dist;
+          if (r < 0 || r >= 8 || c < 0 || c >= 8) break;
+          attacks.push({row:r, col:c});
+          if (board[r][c]) break; // blocked
+        }
+      }
+      break;
+    case TRIBUNE:
+      // bishop moves - diagonals until blocked
+      var bishDirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
+      for (i = 0; i < bishDirs.length; i++) {
+        for (dist = 1; dist < 8; dist++) {
+          r = row + bishDirs[i][0]*dist; c = col + bishDirs[i][1]*dist;
+          if (r < 0 || r >= 8 || c < 0 || c >= 8) break;
+          attacks.push({row:r, col:c});
+          if (board[r][c]) break;
+        }
+      }
+      break;
+    case EQUES:
+      // knight L-shape jumps, can go over pieces
+      var knightMoves = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+      for (i = 0; i < knightMoves.length; i++) {
+        r = row + knightMoves[i][0]; c = col + knightMoves[i][1];
+        if (r >= 0 && r < 8 && c >= 0 && c < 8) attacks.push({row:r, col:c});
+      }
+      break;
+    case SIGNIFER:
+      // signifer attacks ALL 8 adjacent squares bc it can remove any adjacent enemy
+      // my friend pointed out i had this wrong before, it only checked orthogonal lol
+      var signDirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+      for (i = 0; i < signDirs.length; i++) {
+        r = row + signDirs[i][0]; c = col + signDirs[i][1];
+        if (r >= 0 && r < 8 && c >= 0 && c < 8) attacks.push({row:r, col:c});
+      }
+      break;
+    case MILITES:
+      // milites attacks forward diagonals only
+      var fwd = (piece.color === 'white') ? -1 : 1;
+      var milDirs = [[fwd,-1],[fwd,1]];
+      for (i = 0; i < milDirs.length; i++) {
+        r = row + milDirs[i][0]; c = col + milDirs[i][1];
+        if (r >= 0 && r < 8 && c >= 0 && c < 8) attacks.push({row:r, col:c});
+      }
+      break;
+  }
+  return attacks;
+}
+
+// ===== IS SQUARE ATTACKED BY COLOR =====
+// checks if a square is attacked by any piece of the given color
+function isSquareAttackedBy(row, col, byColor) {
+  var r, c, attacks, a;
+  for (r = 0; r < 8; r++) {
+    for (c = 0; c < 8; c++) {
+      if (board[r][c] && board[r][c].color === byColor) {
+        attacks = getAttackSquares(r, c);
+        for (a = 0; a < attacks.length; a++) {
+          if (attacks[a].row === row && attacks[a].col === col) return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+// ===== IS IN CHECK =====
+function isInCheck(color) {
+  var impPos = findImperator(color);
+  if (!impPos) return false;
+  var enemy = (color === 'white') ? 'black' : 'white';
+  return isSquareAttackedBy(impPos.row, impPos.col, enemy);
+}
+
+// ===== IS MOVE SAFE FOR IMPERATOR =====
+// simulates a normal move and checks if own imperator would be in check
+// this is the function that took me 3 hours to debug lol
+function isMoveSafeForImperator(fromR, fromC, toR, toC, color) {
+  var fromPiece = board[fromR][fromC];
+  var toPiece = board[toR][toC];
+  // do the move temporarily
+  board[toR][toC] = fromPiece;
+  board[fromR][fromC] = null;
+  var check = isInCheck(color);
+  // undo the simulation
+  board[fromR][fromC] = fromPiece;
+  board[toR][toC] = toPiece;
+  return !check;
+}
+
+// ===== IS REMOVE SAFE FOR IMPERATOR =====
+// for the signifer special ability - removes target without moving
+// need to check if this exposes your own imperator
+function isRemoveSafeForImperator(targetR, targetC, color) {
+  var targetPiece = board[targetR][targetC];
+  // simulate removing the target piece
+  board[targetR][targetC] = null;
+  var check = isInCheck(color);
+  // restore
+  board[targetR][targetC] = targetPiece;
+  return !check;
+}
+
+// ===== GET VALID MOVES =====
+// ok this is the big one, figures out where a piece can legally move
+function getValidMoves(row, col) {
+  var piece = board[row][col];
+  if (!piece) return [];
+  var moves = [];
+  var r, c, i, dist, target;
+
+  switch (piece.type) {
+    case IMPERATOR:
+      // 1 square any direction, but cant move into check
+      var impDirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+      for (i = 0; i < impDirs.length; i++) {
+        r = row + impDirs[i][0]; c = col + impDirs[i][1];
+        if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+          target = board[r][c];
+          if (!target || target.color !== piece.color) {
+            if (isMoveSafeForImperator(row, col, r, c, piece.color)) {
+              moves.push({row:r, col:c});
+            }
+          }
+        }
+      }
+      break;
+
+    case LEGATE:
+      // rook-style: straight lines, blocked by pieces
+      var rkDirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      for (i = 0; i < rkDirs.length; i++) {
+        for (dist = 1; dist < 8; dist++) {
+          r = row + rkDirs[i][0]*dist; c = col + rkDirs[i][1]*dist;
+          if (r < 0 || r >= 8 || c < 0 || c >= 8) break;
+          target = board[r][c];
+          if (target) {
+            if (target.color !== piece.color) {
+              if (isMoveSafeForImperator(row, col, r, c, piece.color)) {
+                moves.push({row:r, col:c});
+              }
+            }
+            break; // blocked
+          }
+          if (isMoveSafeForImperator(row, col, r, c, piece.color)) {
+            moves.push({row:r, col:c});
+          }
+        }
+      }
+      break;
+
+    case TRIBUNE:
+      // bishop-style: diagonals, blocked by pieces
+      var biDirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
+      for (i = 0; i < biDirs.length; i++) {
+        for (dist = 1; dist < 8; dist++) {
+          r = row + biDirs[i][0]*dist; c = col + biDirs[i][1]*dist;
+          if (r < 0 || r >= 8 || c < 0 || c >= 8) break;
+          target = board[r][c];
+          if (target) {
+            if (target.color !== piece.color) {
+              if (isMoveSafeForImperator(row, col, r, c, piece.color)) {
+                moves.push({row:r, col:c});
+              }
+            }
+            break;
+          }
+          if (isMoveSafeForImperator(row, col, r, c, piece.color)) {
+            moves.push({row:r, col:c});
+          }
+        }
+      }
+      break;
+
+    case EQUES:
+      // knight L-shape
+      var knMoves = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+      for (i = 0; i < knMoves.length; i++) {
+        r = row + knMoves[i][0]; c = col + knMoves[i][1];
+        if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+          target = board[r][c];
+          if (!target || target.color !== piece.color) {
+            if (isMoveSafeForImperator(row, col, r, c, piece.color)) {
+              moves.push({row:r, col:c});
+            }
+          }
+        }
+      }
+      break;
+
+    case SIGNIFER:
+      // 1 orthogonal move only (remove option handled separately)
+      var sDirs = [[-1,0],[1,0],[0,-1],[0,1]];
+      for (i = 0; i < sDirs.length; i++) {
+        r = row + sDirs[i][0]; c = row + sDirs[i][1]; // BUG FIX: was using row for col offset before
+        // actually wait that IS a bug let me fix it properly
+        r = row + sDirs[i][0]; c = col + sDirs[i][1];
+        if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+          target = board[r][c];
+          if (!target || target.color !== piece.color) {
+            if (isMoveSafeForImperator(row, col, r, c, piece.color)) {
+              moves.push({row:r, col:c});
+            }
+          }
+        }
+      }
+      break;
+
+    case MILITES:
+      // diagonal forward, 1 square (like pawns but only diagonal)
+      var fwd = (piece.color === 'white') ? -1 : 1;
+      var mDirs = [[fwd,-1],[fwd,1]];
+      for (i = 0; i < mDirs.length; i++) {
+        r = row + mDirs[i][0]; c = col + mDirs[i][1];
+        if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+          target = board[r][c];
+          if (!target || target.color !== piece.color) {
+            if (isMoveSafeForImperator(row, col, r, c, piece.color)) {
+              moves.push({row:r, col:c});
+            }
+          }
+        }
+      }
+      break;
+  }
+  return moves;
+}
+
+// ===== HAS LEGAL MOVES =====
+// checks if a color has any legal moves at all (nested loops, inefficient but works)
+function hasLegalMoves(color) {
+  var r, c, moves;
+  for (r = 0; r < 8; r++) {
+    for (c = 0; c < 8; c++) {
+      if (board[r][c] && board[r][c].color === color) {
+        moves = getValidMoves(r, c);
+        if (moves.length > 0) return true;
+        // also check signifer remove option
+        if (board[r][c].type === SIGNIFER) {
+          var enemies = getAdjacentEnemies(r, c);
+          for (var e = 0; e < enemies.length; e++) {
+            if (isRemoveSafeForImperator(enemies[e].row, enemies[e].col, color)) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
+
+// ===== EXECUTE MOVE =====
+// actually moves a piece from one square to another
+function executeMove(fromR, fromC, toR, toC) {
+  var captured = board[toR][toC]; // save what was there before
+  board[toR][toC] = board[fromR][fromC];
+  board[fromR][fromC] = null;
+  lastMoveFrom = {row:fromR, col:fromC};
+  lastMoveTo = {row:toR, col:toC};
+  selectedCell = null;
+  validMoves = [];
+  renderBoard();
+  return captured;
+}
+
+// ===== CHECK IMPERATOR CAPTURED =====
+function checkImperatorCaptured() {
+  if (!findImperator('white')) {
+    phase = 'gameover';
+    setStatus("BLACK WINS! White's Imperator was captured!");
+    renderBoard();
+    return true;
+  }
+  if (!findImperator('black')) {
+    phase = 'gameover';
+    setStatus("WHITE WINS! Black's Imperator was captured!");
+    renderBoard();
+    return true;
+  }
+  return false;
+}
+
+// ===== GET ADJACENT FRIENDLY PIECES =====
+// gets pieces next to the imperator that can be commanded
+// uses ALL 8 adjacent squares (diagonal too, my friend said i had this wrong)
+function getAdjacentFriendlyPieces(color) {
+  var impPos = findImperator(color);
+  if (!impPos) return [];
+  var pieces = [];
+  var dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+  var r, c, i;
+  for (i = 0; i < dirs.length; i++) {
+    r = impPos.row + dirs[i][0];
+    c = impPos.col + dirs[i][1];
+    if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+      if (board[r][c] && board[r][c].color === color && board[r][c].type !== IMPERATOR) {
+        pieces.push({row:r, col:c});
+      }
+    }
+  }
+  return pieces;
+}
+
+// ===== GET ADJACENT ENEMIES =====
+// for the signifer remove ability - all 8 adjacent squares
+function getAdjacentEnemies(row, col) {
+  var piece = board[row][col];
+  if (!piece) return [];
+  var enemies = [];
+  var dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+  var r, c, i;
+  for (i = 0; i < dirs.length; i++) {
+    r = row + dirs[i][0]; c = col + dirs[i][1];
+    if (r >= 0 && r < 8 && c >= 0 && c < 8) {
+      if (board[r][c] && board[r][c].color !== piece.color) {
+        enemies.push({row:r, col:c});
+      }
+    }
+  }
+  return enemies;
+}
+
+// ===== IS ADJACENT =====
+// checks if two squares are next to each other (all 8 directions)
+function isAdjacent(r1, c1, r2, c2) {
+  var dr = Math.abs(r1 - r2);
+  var dc = Math.abs(c1 - c2);
+  return dr <= 1 && dc <= 1 && (dr + dc > 0);
+}
+
+// ===== CELL CLICK =====
+// this is the main thing that handles clicking on the board
+// its kinda long but it works so dont touch it
+function cellClick(row, col) {
+  if (phase === 'gameover') return;
+
+  if (phase === 'select') {
+    handleSelectPhase(row, col);
+  } else if (phase === 'move') {
+    handleMovePhase(row, col);
+  } else if (phase === 'signifer_remove') {
+    handleSigniferRemovePhase(row, col);
+  } else if (phase === 'command_select') {
+    handleCommandSelectPhase(row, col);
+  } else if (phase === 'command_move') {
+    handleCommandMovePhase(row, col);
+  }
+}
+
+// ===== SELECT PHASE =====
+// player is picking a piece to move
+function handleSelectPhase(row, col) {
+  var piece = board[row][col];
+  if (!piece || piece.color !== turn) return;
+
+  if (piece.type === SIGNIFER) {
+    // signifer is special, show choice
+    selectedCell = {row:row, col:col};
+    showSigniferChoice(row, col);
+  } else {
+    // normal piece selection
+    selectedCell = {row:row, col:col};
+    validMoves = getValidMoves(row, col);
+    phase = 'move';
+    setStatus(turn + "'s turn - click a highlighted square to move");
+    renderBoard();
+  }
+}
+
+// ===== MOVE PHASE =====
+// player has selected a piece and is picking where to move
+function handleMovePhase(row, col) {
+  // check if they clicked a valid move square
+  var isValid = false, i;
+  for (i = 0; i < validMoves.length; i++) {
+    if (validMoves[i].row === row && validMoves[i].col === col) { isValid = true; break; }
+  }
+  if (isValid) {
+    saveState();
+    executeMove(selectedCell.row, selectedCell.col, row, col);
+    // check promotion
+    if (board[row][col] && board[row][col].type === MILITES) {
+      var promoRank = (turn === 'white') ? 0 : 7;
+      if (row === promoRank) {
+        showPromotion(row, col);
+        return;
+      }
+    }
+    if (checkImperatorCaptured()) return;
+    afterMove();
+  } else {
+    // clicked somewhere that's not a valid move
+    var piece = board[row][col];
+    if (piece && piece.color === turn) {
+      // re-select a different piece
+      if (piece.type === SIGNIFER) {
+        selectedCell = {row:row, col:col};
+        showSigniferChoice(row, col);
+      } else {
+        selectedCell = {row:row, col:col};
+        validMoves = getValidMoves(row, col);
+        phase = 'move';
+        renderBoard();
+      }
+    } else {
+      // deselect
+      selectedCell = null;
+      validMoves = [];
+      phase = 'select';
+      setStatus(turn + "'s turn - select a piece");
+      renderBoard();
+    }
+  }
+}
+
+// ===== SIGNIFER REMOVE PHASE =====
+// when the signifer uses its special ability to remove an adjacent enemy
+function handleSigniferRemovePhase(row, col) {
+  var isValid = false, i;
+  for (i = 0; i < validMoves.length; i++) {
+    if (validMoves[i].row === row && validMoves[i].col === col) { isValid = true; break; }
+  }
+  if (isValid) {
+    // CHECK: make sure removing this enemy doesn't leave our imperator in check
+    // this was a bug before - you could remove a piece that was blocking a check
+    if (!isRemoveSafeForImperator(row, col, turn)) {
+      setStatus("Can't remove that piece - your Imperator would be in check!");
+      return;
+    }
+    saveState();
+    var removed = board[row][col];
+    board[row][col] = null;
+    lastMoveFrom = selectedCell;
+    lastMoveTo = {row:row, col:col};
+    selectedCell = null;
+    validMoves = [];
+    hideModal();
+    if (checkImperatorCaptured()) return;
+    afterMove();
+  }
+}
+
+// ===== COMMAND SELECT PHASE =====
+// player is picking which piece to command (adjacent to imperator)
+// FIXED: now checks all 8 adjacent squares, not just orthogonal ones
+function handleCommandSelectPhase(row, col) {
+  var cmdPiece = board[row][col];
+  if (cmdPiece && cmdPiece.color === turn) {
+    var impPos = findImperator(turn);
+    if (impPos && isAdjacent(row, col, impPos.row, impPos.col)) {
+      // this piece is adjacent to imperator, show its moves
+      selectedCell = {row:row, col:col};
+      validMoves = getValidMoves(row, col);
+      if (validMoves.length > 0) {
+        phase = 'command_move';
+        setStatus("Select where to move the commanded piece");
+        renderBoard();
+        return;
+      } else {
+        setStatus("That piece has no valid moves, pick another");
+        return;
+      }
+    }
+  }
+  // clicked somewhere invalid - cancel command selection
+  phase = 'select';
+  selectedCell = null;
+  validMoves = [];
+  setStatus(turn + "'s turn - select a piece");
+  renderBoard();
+}
+
+// ===== COMMAND MOVE PHASE =====
+function handleCommandMovePhase(row, col) {
+  var isValid = false, i;
+  for (i = 0; i < validMoves.length; i++) {
+    if (validMoves[i].row === row && validMoves[i].col === col) { isValid = true; break; }
+  }
+  if (isValid) {
+    executeMove(selectedCell.row, selectedCell.col, row, col);
+    commandUsedThisTurn = true;
+    // check promotion for commanded piece
+    if (board[row][col] && board[row][col].type === MILITES) {
+      var promoRank = (turn === 'white') ? 0 : 7;
+      if (row === promoRank) {
+        showPromotion(row, col);
+        return; // promoteTo will call endTurn since commandUsedThisTurn is true
+      }
+    }
+    if (checkImperatorCaptured()) return;
+    endTurn();
+  } else {
+    // go back to command select
+    selectedCell = null;
+    validMoves = [];
+    phase = 'command_select';
+    var adj = getAdjacentFriendlyPieces(turn);
+    validMoves = adj;
+    setStatus("Select a highlighted piece next to your Imperator (or click elsewhere to cancel)");
+    renderBoard();
+  }
+}
+
+// ===== AFTER MOVE =====
+// stuff that happens after a normal move
+function afterMove() {
+  // offer imperator command if available (once per turn, after your move)
+  if (!commandUsedThisTurn && findImperator(turn)) {
+    var adj = getAdjacentFriendlyPieces(turn);
+    if (adj.length > 0) {
+      showCommandOffer();
+      return;
+    }
+  }
+  endTurn();
+}
+
+// ===== END TURN =====
+function endTurn() {
+  turn = (turn === 'white') ? 'black' : 'white';
+  commandUsedThisTurn = false;
+  phase = 'select';
+  selectedCell = null;
+  validMoves = [];
+  // check if the new player has any legal moves
+  // in this game stalemate = LOSS, not a draw (thats what makes it different from chess)
+  if (!hasLegalMoves(turn)) {
+    phase = 'gameover';
+    var winner = (turn === 'white') ? 'Black' : 'White';
+    setStatus(winner + " WINS! " + turn + " has no legal moves!");
+    renderBoard();
+    return;
+  }
+  // check if in check at start of turn
+  var checkMsg = isInCheck(turn) ? ' - CHECK!' : '';
+  setStatus(turn + "'s turn - select a piece" + checkMsg);
+  renderBoard();
+}
+
+// ===== MODAL STUFF =====
+function showModal(title, text, buttons) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-text').textContent = text;
+  var btnContainer = document.getElementById('modal-buttons');
+  btnContainer.innerHTML = '';
+  var i, btn;
+  for (i = 0; i < buttons.length; i++) {
+    btn = document.createElement('button');
+    btn.className = 'modal-btn';
+    btn.textContent = buttons[i].label;
+    // closure thing again, breaks without it
+    (function(b) {
+      btn.onclick = function() { b.action(); };
+    })(buttons[i]);
+    btnContainer.appendChild(btn);
+  }
+  document.getElementById('modal-overlay').classList.add('active');
+}
+
+function hideModal() {
+  document.getElementById('modal-overlay').classList.remove('active');
+}
+
+function modalOverlayClick(e) {
+  // dont close modal on background click, they need to pick an option
+}
+
+// ===== SIGNIFER CHOICE =====
+// signifer is special - can either move 1 orthogonal OR remove an adjacent enemy
+// this is the "two-choice mechanic" that makes the signifer unique
+function showSigniferChoice(row, col) {
+  var adjEnemies = getAdjacentEnemies(row, col);
+  // filter enemies for check safety
+  var safeEnemies = [];
+  for (var e = 0; e < adjEnemies.length; e++) {
+    if (isRemoveSafeForImperator(adjEnemies[e].row, adjEnemies[e].col, turn)) {
+      safeEnemies.push(adjEnemies[e]);
+    }
+  }
+  if (safeEnemies.length === 0) {
+    // no enemies to remove (or all removals would leave imperator in check)
+    phase = 'move';
+    validMoves = getValidMoves(row, col);
+    setStatus(turn + "'s turn - click a highlighted square to move (Signifer: 1 orthogonal)");
+    renderBoard();
+    return;
+  }
+  var buttons = [
+    {
+      label: "Move (1 orthogonal)",
+      action: function() {
+        hideModal();
+        phase = 'move';
+        validMoves = getValidMoves(row, col);
+        if (validMoves.length === 0) {
+          setStatus("No valid moves for Signifer, pick another piece");
+          phase = 'select';
+          selectedCell = null;
+        } else {
+          setStatus(turn + "'s turn - click a highlighted square to move");
+        }
+        renderBoard();
+      }
+    },
+    {
+      label: "Remove adjacent enemy",
+      action: function() {
+        hideModal();
+        phase = 'signifer_remove';
+        validMoves = safeEnemies;
+        setStatus(turn + "'s turn - click a RED square to remove that enemy (Signifer stays put)");
+        renderBoard();
+      }
+    }
+  ];
+  showModal("Signifer Action", "Your Signifer can either MOVE 1 square orthogonally OR REMOVE an adjacent enemy without moving. Pick one:", buttons);
+}
+
+// ===== PROMOTION =====
+// when a milites reaches the back rank, pick a new piece
+// the rules say "any piece type" so you can even promote to Imperator (risky but cool)
+function showPromotion(row, col) {
+  var piece = board[row][col];
+  var clr = piece.color;
+  var buttons = [
+    { label: "Imperator " + SYMBOLS[clr].imperator, action: function() { promoteTo(row, col, IMPERATOR); } },
+    { label: "Legate " + SYMBOLS[clr].legate, action: function() { promoteTo(row, col, LEGATE); } },
+    { label: "Tribune " + SYMBOLS[clr].tribune, action: function() { promoteTo(row, col, TRIBUNE); } },
+    { label: "Eques " + SYMBOLS[clr].eques, action: function() { promoteTo(row, col, EQUES); } },
+    { label: "Signifer " + SYMBOLS[clr].signifer, action: function() { promoteTo(row, col, SIGNIFER); } },
+    { label: "Stay Milites " + SYMBOLS[clr].milites, action: function() { promoteTo(row, col, MILITES); } }
+  ];
+  showModal("Milites Promotion!", "Your Milites reached the last rank! Choose what to promote it to. (Yes, even Imperator - but if either gets captured, you lose!)", buttons);
+}
+
+function promoteTo(row, col, type) {
+  board[row][col].type = type;
+  hideModal();
+  renderBoard();
+  if (checkImperatorCaptured()) return;
+  if (commandUsedThisTurn) {
+    endTurn();
+  } else {
+    afterMove();
+  }
+}
+
+// ===== IMPERATOR COMMAND =====
+// this is the coolest mechanic in the game imo
+// after your normal move, if your imperator has friendly pieces next to it,
+// you can order one of them to make an extra move!
+function showCommandOffer() {
+  var buttons = [
+    {
+      label: "Use Command!",
+      action: function() {
+        hideModal();
+        startCommand();
+      }
+    },
+    {
+      label: "No thanks",
+      action: function() {
+        hideModal();
+        endTurn();
+      }
+    }
+  ];
+  showModal("Imperator Command", "Your Imperator can order one adjacent friendly piece to make an extra move! Use this ability?", buttons);
+}
+
+function startCommand() {
+  var adjPieces = getAdjacentFriendlyPieces(turn);
+  if (adjPieces.length === 0) {
+    // no pieces to command somehow (maybe they were all removed by signifer)
+    endTurn();
+    return;
+  }
+  phase = 'command_select';
+  selectedCell = null;
+  validMoves = adjPieces;
+  setStatus("Click a HIGHLIGHTED piece next to your Imperator to command it (or click elsewhere to cancel)");
+  renderBoard();
+}
+
+// ===== NEW GAME =====
+function newGame() {
+  initBoard();
+  turn = 'white';
+  selectedCell = null;
+  validMoves = [];
+  savedState = null;
+  commandUsedThisTurn = false;
+  phase = 'select';
+  lastMoveFrom = null;
+  lastMoveTo = null;
+  hideModal();
+  setStatus("White's turn - select a piece");
+  renderBoard();
+}
+
+// ===== START THE GAME =====
+// ok lets go!!
+newGame();
+</script>
+</body>
+</html>
